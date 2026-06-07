@@ -1,0 +1,92 @@
+# "org" ensures this Service is used with the correct Serverless Framework Access Key.
+org: zaid2314
+# "service" is the name of this project. This will also be added to your AWS resource names.
+service: productService
+
+provider:
+  name: aws
+  runtime: nodejs20.x
+  region: ap-south-1
+  httpApi:
+     authorizers:
+       myCognitoAuth:
+         identitySource: $request.header.Authorization
+         issuerUrl: https://cognito-idp.ap-south-1.amazonaws.com/ap-south-1_mZoOdUhve
+         audience:
+           -  14e41s5p9a1sjca3bqmmogap7
+  environment:
+    BUCKET_NAME: products-images-zaid-2314-xyz789
+    DYNAMO_TABLE: Products
+    SNS_TOPIC_ARN: arn:aws:sns:ap-south-1:552072248049:ProductCleanupTopic
+  iamRoleStatements:
+    - Effect: 'Allow'
+      Action:
+        - 'dynamodb:PutItem'
+        - 'dynamodb:UpdateItem'
+        - 'dynamodb:Scan'
+        - 'dynamodb:DeleteItem'
+      Resource: arn:aws:dynamodb:ap-south-1:552072248049:table/Products
+    - Effect: "Allow"
+      Action:
+        -  s3:PutObject
+      Resource: arn:aws:s3:::products-images-zaid-2314-xyz789/*
+    - Effect: "Allow"
+      Action:
+        -  sns:Publish
+      Resource: arn:aws:sns:ap-south-1:552072248049:ProductCleanupTopic
+
+resources:
+  Resources:
+    ProductImagesBucket:
+      Type: AWS::S3::Bucket
+      Properties:
+        BucketName: products-images-zaid-2314-xyz789
+
+    ProductTable:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        TableName: Products
+        BillingMode: PAY_PER_REQUEST
+        AttributeDefinitions:
+          - AttributeName: id
+            AttributeType: S
+        KeySchema:
+          - AttributeName: id
+            KeyType: HASH
+    ProductCleanUpTopic:
+      Type: AWS::SNS::Topic
+      Properties:
+        TopicName: ProductCleanupTopic
+    ProductCleanupSubscription:
+      Type: AWS::SNS::Subscription
+      Properties:
+        TopicArn: arn:aws:sns:ap-south-1:552072248049:ProductCleanupTopic
+        Protocol: email
+        Endpoint: allrounderanz123@gmail.com
+functions:
+  getUploadUrl:
+    handler: handlers/getUploadUrl.getUploadUrl
+    events:
+      - httpApi:
+          path: /upload-url
+          method: post
+          authorizer:
+            name: myCognitoAuth
+  getAllProducts:
+    handler: handlers/getAllProducts.getAllProducts
+    events:
+      -  httpApi:
+           path: /products
+           method: get
+
+  updateProductImage:
+    handler: handlers/updateProductImage.updateProductImage
+    events:
+      - s3:
+          bucket: products-images-zaid-2314-xyz789
+          event: s3:ObjectCreated:Put
+          existing: true
+  cleanupProducts:
+    handler: handlers/cleanupProducts.cleanupProducts
+    events:
+      -  schedule: rate(2 minutes)

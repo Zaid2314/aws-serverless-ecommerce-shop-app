@@ -1,0 +1,83 @@
+org: zaid2314
+service: categoryService
+
+provider:
+  name: aws
+  runtime: nodejs20.x
+  region: ap-south-1
+  environment:
+    BUCKET_NAME: category-images-zaid-2314-xyz789
+    DYNAMO_TABLE: Categories
+    SNS_TOPIC_ARN: arn:aws:sns:ap-south-1:552072248049:CategoryCleanupTopic
+  iamRoleStatements:
+    - Effect: Allow
+      Action:
+        - s3:PutObject
+      Resource:
+        - arn:aws:s3:::category-images-zaid-2314-xyz789/*
+
+    - Effect: Allow
+      Action:
+        - dynamodb:PutItem
+        - dynamodb:Scan
+        - dynamodb:UpdateItem
+        - dynamodb:DeleteItem
+      Resource:
+        - arn:aws:dynamodb:ap-south-1:552072248049:table/Categories
+    - Effect: 'Allow'
+      Action:
+        - sns:Publish
+      Resource: arn:aws:sns:ap-south-1:552072248049:CategoryCleanupTopic
+
+resources:
+  Resources:
+    CategoryImagesBucket:
+      Type: AWS::S3::Bucket
+      Properties:
+        BucketName: category-images-zaid-2314-xyz789
+
+    CategoryTable:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        TableName: Categories
+        BillingMode: PAY_PER_REQUEST
+        AttributeDefinitions:
+          - AttributeName: fileName
+            AttributeType: S
+        KeySchema:
+          - AttributeName: fileName
+            KeyType: HASH
+    CategoryCleanUpTopic:
+      Type: AWS::SNS::Topic
+      Properties:
+        TopicName: CategoryCleanupTopic
+    CategoryCleanupSubscription:
+      Type: AWS::SNS::Subscription
+      Properties:
+        TopicArn: arn:aws:sns:ap-south-1:552072248049:CategoryCleanupTopic
+        Protocol: email
+        Endpoint: allrounderanz123@gmail.com
+functions:
+  getUploadUrl:
+    handler: handlers/getUploadUrl.getUploadUrl
+    events:
+      - httpApi:
+          path: /upload-url
+          method: post
+  getAllCategories:
+    handler: handlers/getAllCategories.getAllCategories
+    events:
+      -  httpApi:
+           path: /categories
+           method: get
+  updateCategoryImage:
+    handler: handlers/updateCategoryImage.updateCategoryImage
+    events:
+      -  s3:
+           bucket: category-images-zaid-2314-xyz789
+           event: s3:ObjectCreated:Put
+           existing: true
+  cleanupCategories:
+    handler: handlers/cleanupCategories.cleanupCategories
+    events:
+      -  schedule: rate(2 minutes)
